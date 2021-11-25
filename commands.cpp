@@ -1,4 +1,4 @@
-//		commands.c
+//		commands.cpp
 //********************************************
 #include "commands.h"
 using namespace std;
