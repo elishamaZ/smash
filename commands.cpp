@@ -122,9 +122,13 @@ int ExeCmd(SmallShell* smash, void* jobs, char* lineSize, char* cmdString)
 			jobIdToFG = smash->jobs->findCurrMaxJobID();
 		}
 		else { //command: "fg [command number]"
-			jobIdToFG = stoi(args[1]);
-				std::cerr << "smash error: fg: invalid arguments" << endl;
+			try {
+				jobIdToFG = stoi(args[1]);
+			}
+			catch (invalid_argument& e) {
+				std::cerr << "smash error: bg: invalid arguments" << endl;
 				return 1;
+			}
 			}
 
 		JobsList::JobItem* job = smash->jobs->getJobById(jobIdToFG);
@@ -186,13 +190,13 @@ int ExeCmd(SmallShell* smash, void* jobs, char* lineSize, char* cmdString)
 		if (!job->stopped) {
 			std::cerr << "smash error: bg: job-id " << jobIdToCont << " is already running in the background" << endl;
 			return 1;
-		}
-		job->stopped = false;
+		}	
 		if (kill(job->PID, SIGCONT) == -1)
 		{
 			perror("smash error: kill failed");
 			return 1;
 		}
+		job->stopped = false;
 		std::cout << job->cmd << endl;
 	}
   		
@@ -208,7 +212,7 @@ int ExeCmd(SmallShell* smash, void* jobs, char* lineSize, char* cmdString)
 			string second_arg = args[1];
 			if (second_arg.compare("kill") == 0) {
 				smash->jobs->removeFinishedJobs();
-				std::cout << "smash: sending SIGKILL signal to " << smash->jobs->jobsList->size() << " jobs:" << endl;
+				//std::cout << "smash: sending SIGKILL signal to " << smash->jobs->jobsList->size() << " jobs:" << endl;
 				smash->jobs->KillAllJobs();
 				exit(0);
 			}
@@ -272,7 +276,7 @@ int ExeCmd(SmallShell* smash, void* jobs, char* lineSize, char* cmdString)
 int ExeExternal(SmallShell* smash, char* args[MAX_ARG], char* cmdString, bool isBackgroundCmd)
 {
 	int pID;
-	string t  = string("/bin/") + string(cmdString);
+	string t  = string("/bin/") + string(args[0]);
 	switch (pID = fork())
 	{
 	case -1: {
@@ -284,7 +288,7 @@ int ExeExternal(SmallShell* smash, char* args[MAX_ARG], char* cmdString, bool is
 		setpgrp();
 		if (execv(t.c_str(), args) == -1) {
 		cerr << "smash error: execv failed" << endl;
-		kill(pID, SIGTERM);
+		kill(pID, SIGKILL);
 		return 1;
 		}
 		break;
@@ -333,12 +337,22 @@ int ExeComp(char* lineSize)
 int BgCmd(SmallShell* smash, char* lineSize, void* jobs)
 {
 
-	char* Command;
+	char* cmd;
 	char* delimiters = " \t\n";
 	char *args[MAX_ARG];
 	if (lineSize[strlen(lineSize)-2] == '&')
 	{
 		lineSize[strlen(lineSize)-2] = '\0';
+		char* delimiters = " \t\n";
+		int i = 0;
+		cmd = strtok(lineSize, delimiters);
+		if (cmd == NULL)
+			return 0;
+		args[0] = cmd;
+		for (i = 1; i < MAX_ARG; i++)
+		{
+			args[i] = strtok(NULL, delimiters);
+		}
 		// Add your code here (execute a in the background)
 		return (ExeExternal(smash, args, lineSize, true));
 					
@@ -421,7 +435,7 @@ void JobsList::addJob(char* cmd, pid_t jobPID, bool isStopped) {
 	if (jobPID == SmallShell::currentPIDRunning) {
 		JobItem* tmp = getJobByPID(jobPID);
 		if (tmp) {        // Means job is already in jobList
-			tmp->startTime = time(nullptr);
+			tmp->startTime = time(nullptr); //Need to check
 			tmp->stopped = true;
 			return;
 		}
@@ -447,7 +461,7 @@ void JobsList::removeFinishedJobs() {
 		pid_t pid = waitpid((*it)->PID, nullptr, WNOHANG);
 		if (pid > 0) { // meaning - job finished running
 			jobsList->remove(*it);
-			it = jobsList->begin();
+			it = jobsList->begin(); // necessery?
 		}
 		else {
 			if ((*it)->jobID > newMaxID) newMaxID = (*it)->jobID;
