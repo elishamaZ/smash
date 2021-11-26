@@ -9,6 +9,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <fstream>
 #include <list>
 #include<iostream>
 #define MAX_LINE_SIZE 80

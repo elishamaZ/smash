@@ -46,7 +46,7 @@ int ExeCmd(SmallShell* smash, void* jobs, char* lineSize, char* cmdString)
 			}
 			else { //previousPath is set 
 				if (chdir(smash->previousPath) == -1) {
-					std::cerr << "smash error:> " << args[1] << "No such file or directory" << endl;
+					std::cerr << "smash error:> " << '"' << args[1] << '"' << " - No such file or directory" << endl;
 					return 1;
 				}
 				else { //print 
@@ -56,7 +56,7 @@ int ExeCmd(SmallShell* smash, void* jobs, char* lineSize, char* cmdString)
 		}
 		else { // not in "cd -" mode
 			if (chdir(args[1]) == -1) {
-				std::cerr << "smash error:> " << args[1] << "No such file or directory" << endl;
+				std::cerr << "smash error:> " << '"' << args[1] << '"' << " - No such file or directory" << endl;
 				return 1;
 			}
 		}
@@ -221,7 +221,28 @@ int ExeCmd(SmallShell* smash, void* jobs, char* lineSize, char* cmdString)
 		{
 			char* file1 = args[1];
 			char* file2 = args[2];
-
+			ifstream t1;
+			t1.open(file1);
+			if (!t1)
+			{ 
+				perror("smash error: > ");
+				return 1;
+			}
+			string str1((istreambuf_iterator<char>(t1)),istreambuf_iterator<char>());
+			ifstream t2;
+			t2.open(file2);
+			if (!t2)
+			{
+				perror("smash error: > ");
+				return 1;
+			}
+			string str2((istreambuf_iterator<char>(t2)), istreambuf_iterator<char>());
+			if (str1 == str2)
+				cout << 1<< "\n";
+			else
+				cout << 0 << "\n";
+			t2.close();
+			t1.close();
 		}
 		else // num_arg != 2
 		{
@@ -356,21 +377,24 @@ SmallShell::~SmallShell() {
 ///////////////////////////////////////////HistoryList Class/////////////////////////////////////////////////////////////////////////
 HistoryList::HistoryList() {
 	historyList = new std::list<string>;
-	historySize = 0;
+	//historySize = 0;
 }
 HistoryList::~HistoryList() {
 	delete historyList;
 }
 void HistoryList::addHistory(char* cmdString) {
 	string cmdToAdd = string(cmdString);
-	if (historySize > MAX_HISTORY_SIZE) { //max size of history is 50		
+	if (historyList->size() == MAX_HISTORY_SIZE)
+		historyList->pop_front(); //removes oldest command - need to check if delete for this item is required 
+	historyList->push_back(cmdToAdd);
+	/* { //max size of history is 50		
 		historyList->push_back(cmdToAdd);//push newest command to the end of the list
 		historyList->pop_front(); //removes oldest command - need to check if delete for this item is required 
 	}
 	else {
 		historyList->push_back(cmdToAdd);
 		historySize++;
-	}
+	}*/
 }
 
 void HistoryList::printHistoryList() {

@@ -49,14 +49,13 @@ int main(int argc, char *argv[])
 		fgets(lineSize, MAX_LINE_SIZE, stdin);
 		strcpy(cmdString, lineSize);    	
 		cmdString[strlen(lineSize)-1]='\0';
-		smash.history->addHistory(cmdString);
 					// perform a complicated Command
 		if(!ExeComp(lineSize)) continue; 
 					// background command	
 	 	if(!BgCmd(&smash, lineSize, jobs)) continue; 
 					// built in commands
 		ExeCmd(&smash, jobs, lineSize, cmdString);
-		
+		smash.history->addHistory(cmdString);
 		/* initialize for next line read*/
 		lineSize[0]='\0';
 		cmdString[0]='\0';
