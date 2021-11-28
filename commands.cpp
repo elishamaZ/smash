@@ -145,7 +145,7 @@ int ExeCmd(SmallShell* smash, void* jobs, char* lineSize, char* cmdString)
 		}
 		job->stopped = false;
 		smash->currentPIDRunning = job->PID;
-		strcpy(smash->currentCmdRunning, job->cmd);
+		strcpy(smash->currentCmdRunning,  job->cmd.c_str());
 		int status = -1;
 		if (waitpid(job->PID, &status, WUNTRACED) == -1) {
 			perror("smash error: waitpid failed");
@@ -255,7 +255,7 @@ int ExeCmd(SmallShell* smash, void* jobs, char* lineSize, char* cmdString)
 
 	}
 	/*************************************************/
-	else // external command
+	else if(!(lineSize[strlen(lineSize) - 2] == '&')) // external command
 	{
  		
 	 	return ExeExternal(smash, args, cmdString, false);
@@ -294,8 +294,10 @@ int ExeExternal(SmallShell* smash, char* args[MAX_ARG], char* cmdString, bool is
 		break;
 	}
 	default: { //parent process
-		if (isBackgroundCmd)
+		if (isBackgroundCmd) {
 			smash->jobs->addJob(cmdString, pID, false);
+			cout << "here" << endl;
+		}
 		else {
 			smash->currentPIDRunning = pID;
 			if (waitpid(pID, nullptr, WUNTRACED) == -1) {
@@ -432,6 +434,7 @@ bool JobsList::JobsComp(JobItem* first, JobItem* second) {
 }
 
 void JobsList::addJob(char* cmd, pid_t jobPID, bool isStopped) {
+	string cur_cmd = cmd;
 	if (jobPID == SmallShell::currentPIDRunning) {
 		JobItem* tmp = getJobByPID(jobPID);
 		if (tmp) {        // Means job is already in jobList
@@ -442,12 +445,13 @@ void JobsList::addJob(char* cmd, pid_t jobPID, bool isStopped) {
 	}
 	removeFinishedJobs();
 	if (jobsList->empty()) {
-		JobItem* newJob = new JobItem(1, jobPID, isStopped, time(nullptr), cmd);
+		JobItem* newJob = new JobItem(1, jobPID, isStopped, time(nullptr), cur_cmd);
 		maxID = 1;
 		jobsList->push_back(newJob);
 	}
 	else {
-		JobItem* newJob = new JobItem(maxID + 1, jobPID, isStopped, time(nullptr), cmd);
+
+		JobItem* newJob = new JobItem(maxID + 1, jobPID, isStopped, time(nullptr), cur_cmd);
 		maxID += 1;
 		jobsList->push_back(newJob);
 	}
@@ -471,11 +475,16 @@ void JobsList::removeFinishedJobs() {
 }
 
 void JobsList::printJobsList() {
-	removeFinishedJobs();
 	jobsList->sort(JobsList::JobsComp);
-	for (auto it = jobsList->begin(); it != jobsList->end(); it++)
+	auto it = jobsList->begin();
+	while (it != jobsList->end())
 	{
 		int timePassed = difftime(time(nullptr), (*it)->startTime);
+		pid_t pid = waitpid((*it)->PID, nullptr, WNOHANG);
+		if (pid > 0) { // meaning - job finished running
+			jobsList->remove(*(it++));
+			continue;
+		}
 		if ((*it)->stopped) {
 			std::cout << "[" << (*it)->jobID << "] " << (*it)->cmd << " : " <<
 				(*it)->PID << " " << timePassed << " secs (stopped)" << endl;
@@ -485,6 +494,7 @@ void JobsList::printJobsList() {
 			std::cout << "[" << (*it)->jobID << "] " << (*it)->cmd << " : " <<
 				(*it)->PID << " " << timePassed << " secs" << endl;
 		}
+		it++;
 	}
 }
 

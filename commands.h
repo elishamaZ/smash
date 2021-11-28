@@ -30,12 +30,12 @@ class JobsList {
 public:
     class JobItem {
     public:
-        JobItem(int jobid, pid_t pid, int stop, time_t time, char* command) : jobID(jobid), PID(pid), stopped(stop), startTime(time), cmd(command) {}
+        JobItem(int jobid, pid_t pid, int stop, time_t time, string command) : jobID(jobid), PID(pid), stopped(stop), startTime(time), cmd(command) {}
         int jobID;
         pid_t PID;
         bool stopped;
         time_t startTime;
-        char* cmd;
+        string cmd;
     };
     std::list<JobItem*>* jobsList;
     int maxID;
