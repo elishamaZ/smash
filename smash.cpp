@@ -27,18 +27,15 @@ int main(int argc, char *argv[])
 	
 	//signal declaretions
 	//NOTE: the signal handlers and the function/s that sets the handler should be found in siganls.c
-	 /* add your code here */
-	
-	/************************************/
-	//NOTE: the signal handlers and the function/s that sets the handler should be found in siganls.c
-	//set your signal handlers here
-	/* add your code here */
-
-	/************************************/
-
+	if (signal(SIGTSTP, ctrlZHandler) == SIG_ERR) {
+		perror("smash error: failed to set ctrl-Z handler");
+	}
+	if (signal(SIGINT, ctrlCHandler) == SIG_ERR) {
+		perror("smash error: failed to set ctrl-C handler");
+	}
 	/************************************/
 	// Init globals 
-
+	SmallShell smash;
 
 	
 	L_Fg_Cmd =(char*)malloc(sizeof(char)*(MAX_LINE_SIZE+1));
@@ -50,15 +47,23 @@ int main(int argc, char *argv[])
     	{
 	 	printf("smash > ");
 		fgets(lineSize, MAX_LINE_SIZE, stdin);
-		strcpy(cmdString, lineSize);    	
+		strcpy(cmdString, lineSize); 
 		cmdString[strlen(lineSize)-1]='\0';
 					// perform a complicated Command
-		if(!ExeComp(lineSize)) continue; 
+		if (!ExeComp(lineSize))
+		{
+			smash.history->addHistory(cmdString);
+			continue;
+		}
 					// background command	
-	 	if(!BgCmd(lineSize, jobs)) continue; 
+		if (!BgCmd(&smash, lineSize, jobs))
+		{
+			smash.history->addHistory(cmdString);
+			continue;
+		}
 					// built in commands
-		ExeCmd(jobs, lineSize, cmdString);
-		
+		ExeCmd(&smash, jobs, lineSize, cmdString);
+		smash.history->addHistory(cmdString);
 		/* initialize for next line read*/
 		lineSize[0]='\0';
 		cmdString[0]='\0';
