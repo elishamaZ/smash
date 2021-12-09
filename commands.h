@@ -48,8 +48,8 @@ public:
     JobItem* getJobById(int jobId);
     JobItem* getJobByPID(pid_t pid);
     void removeJobById(int jobId);
-    JobItem* getLastJob(int* lastJobId);
-    JobItem* getLastStoppedJob(int* jobId);
+    //JobItem* getLastJob(int* lastJobId);
+    //JobItem* getLastStoppedJob(int* jobId);
     int findCurrMaxJobID();
     int findMaxStoppedJobID();
     void KillAllJobs();
@@ -64,15 +64,14 @@ public:
     char* previousPath;
     static HistoryList* history;
     static JobsList* jobs;
-    //TO ADD HISTORY
     static pid_t currentPIDRunning;
     static char* currentCmdRunning;
     //SmallShell(SmallShell const&) = delete; // disable copy ctor
     //void operator=(SmallShell const&) = delete; // disable = operator
     ~SmallShell();
 };
-int ExeComp(char* lineSize);
-int BgCmd(SmallShell* smash, char* lineSize, void* jobs);
+//int ExeComp(char* lineSize);
+//int BgCmd(SmallShell* smash, void* jobs, char* lineSize, char* cmdString);
 int ExeCmd(SmallShell* smash, void* jobs, char* lineSize, char* cmdString);
 int ExeExternal(SmallShell* smash, char* args[MAX_ARG], char* cmdString, bool isBackgroundCmd);
 

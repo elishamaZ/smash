@@ -13,7 +13,7 @@ main file. This file contains the main function of smash
 #define MAX_LINE_SIZE 80
 #define MAXARGS 20
 
-char* L_Fg_Cmd;
+//char* L_Fg_Cmd;
 void* jobs = NULL; //This represents the list of jobs. Please change to a preferred type (e.g array of char*)
 char lineSize[MAX_LINE_SIZE]; 
 //**************************************************************************************
@@ -38,10 +38,10 @@ int main(int argc, char *argv[])
 	SmallShell smash;
 
 	
-	L_Fg_Cmd =(char*)malloc(sizeof(char)*(MAX_LINE_SIZE+1));
-	if (L_Fg_Cmd == NULL) 
-			exit (-1); 
-	L_Fg_Cmd[0] = '\0';
+	//L_Fg_Cmd =(char*)malloc(sizeof(char)*(MAX_LINE_SIZE+1));
+	//if (L_Fg_Cmd == NULL) 
+	//		exit (-1); 
+	//L_Fg_Cmd[0] = '\0';
 	
     	while (1)
     	{
@@ -49,21 +49,25 @@ int main(int argc, char *argv[])
 		fgets(lineSize, MAX_LINE_SIZE, stdin);
 		strcpy(cmdString, lineSize); 
 		cmdString[strlen(lineSize)-1]='\0';
+		/*
 					// perform a complicated Command
 		if (!ExeComp(lineSize))
 		{
 			smash.history->addHistory(cmdString);
 			continue;
 		}
+		*/
 					// background command	
-		if (!BgCmd(&smash, lineSize, jobs))
-		{
-			smash.history->addHistory(cmdString);
-			continue;
-		}
+		//if (!BgCmd(&smash, jobs, lineSize, cmdString)) //FIXME - necessary?
+		//{
+		//	smash.history->addHistory(cmdString);
+		//	continue;
+		//}
 					// built in commands
 		ExeCmd(&smash, jobs, lineSize, cmdString);
-		smash.history->addHistory(cmdString);
+		//if (strlen(cmdString) != 0) { //not adding empty commands
+		//	smash.history->addHistory(cmdString);
+		//}
 		/* initialize for next line read*/
 		lineSize[0]='\0';
 		cmdString[0]='\0';

@@ -13,20 +13,29 @@ int ExeCmd(SmallShell* smash, void* jobs, char* lineSize, char* cmdString)
 	char* cmd; 
 	char* args[MAX_ARG];
 	char pwd[MAX_LINE_SIZE];
-	char* delimiters = " \t\n";  
+	char delimiters[5] = " \t\n";  
 	int i = 0, num_arg = 0;
 	bool illegal_cmd = false; // illegal command
     	cmd = strtok(lineSize, delimiters);
 	if (cmd == NULL)
 		return 0; 
    	args[0] = cmd;
+	smash->history->addHistory(cmdString);
+	if (*cmd == '&') { // check if the command is "    &" - should be error (question from the forum) 
+		std::cerr << "smash error: > " << "\"" << cmdString << "\"" << endl;
+		return 1;
+	}         
+	string CmdWithoutWhiteSpaces = cmd;
 	for (i=1; i<MAX_ARG; i++)
 	{
 		args[i] = strtok(NULL, delimiters); 
-		if (args[i] != NULL) 
-			num_arg++; 
- 
+		if (args[i] != NULL) {
+			num_arg++;
+			if (*(args[i]) == '&') return (ExeExternal(smash, args, const_cast<char*>(CmdWithoutWhiteSpaces.c_str()), true));
+			else CmdWithoutWhiteSpaces = CmdWithoutWhiteSpaces + " " + args[i];
+		}
 	}
+	
 /*************************************************/
 // Built in Commands PLEASE NOTE NOT ALL REQUIRED
 // ARE IN THIS CHAIN OF IF COMMANDS. PLEASE ADD
@@ -35,18 +44,18 @@ int ExeCmd(SmallShell* smash, void* jobs, char* lineSize, char* cmdString)
 	if (!strcmp(cmd, "cd") ) 
 	{
 		char* plastPwd = getcwd(NULL, 0);
-		if (num_arg > 1) { //check if there is more than 1 arg - "cd" uses 1 arg
-			std::cerr << "smash error: cd: too many arguments" << endl; 
+		if (num_arg != 1) {//check if there is either more than 1 arg or no arg - "cd" uses 1 arg
+			std::cerr << "smash error: > " << "\""  << cmdString << "\"" << endl;
 			return 1;
 		}
 		if (!strcmp(args[1], "-")) { // "cd -" mode
 			if (!smash->previousPath) { //previousPath is not set yet
-				std::cerr << "smash error: cd: There is NO previous path" << endl; 
+				std::cerr << "smash error: > cd: There is NO previous path" << endl; 
 				return 1;
 			}
 			else { //previousPath is set 
 				if (chdir(smash->previousPath) == -1) {
-					std::cerr << "smash error:> " << '"' << args[1] << '"' << " - No such file or directory" << endl;
+					perror("smash error: > ");
 					return 1;
 				}
 				else { //print 
@@ -56,7 +65,7 @@ int ExeCmd(SmallShell* smash, void* jobs, char* lineSize, char* cmdString)
 		}
 		else { // not in "cd -" mode
 			if (chdir(args[1]) == -1) {
-				std::cerr << "smash error:> " << '"' << args[1] << '"' << " - No such file or directory" << endl;
+				perror("smash error: > ");
 				return 1;
 			}
 		}
@@ -68,20 +77,23 @@ int ExeCmd(SmallShell* smash, void* jobs, char* lineSize, char* cmdString)
 	else if (!strcmp(cmd, "pwd")) 
 	{
 		if (num_arg > 0) { //check if there is more than 0 arg - "pwd" doesn't use any arg
-			std::cerr << "smash error: pwd: too many arguments" << endl;
+			std::cerr << "smash error: > " << "\"" << cmdString << "\"" << endl;
 			return 1;
 		}
-		if (getcwd(pwd, MAX_LINE_SIZE) == NULL)//getcwd() fail
-			std::cout << "getcwd() error" << endl;
-		else
+		if (getcwd(pwd, MAX_LINE_SIZE) == NULL) {//getcwd() fail
+			perror("smash error: > ");
+			return 1;
+		}
+		else {
 			std::cout << pwd << endl;
+		}
 	}
 	
 	/*************************************************/
 	else if (!strcmp(cmd, "history"))
 	{
 		if (num_arg > 0) { //check if there is more than 0 arg - "history" doesn't use any arg
-			std::cerr << "smash error: history: too many arguments" << endl;
+			std::cerr << "smash error: > " << "\"" << cmdString << "\"" << endl;
 			return 1;
 		}
 		smash->history->printHistoryList();
@@ -91,16 +103,75 @@ int ExeCmd(SmallShell* smash, void* jobs, char* lineSize, char* cmdString)
 	else if (!strcmp(cmd, "jobs")) 
 	{
 		if (num_arg > 0) { //check if there is more than 0 arg - "jobs" doesn't use any arg
-			std::cerr << "smash error: jobs: too many arguments" << endl;
+			std::cerr << "smash error: > " << "\"" << cmdString << "\"" << endl;
 			return 1;
 		}
 		smash->jobs->printJobsList();
 	}
 	/*************************************************/
+	else if (!strcmp(cmd, "kill"))
+	{
+		if (num_arg != 2)
+		{
+			std::cerr << "smash error: > " << "\"" << cmdString << "\"" << endl;
+			return 1;
+		}
+		if (args[1][0] != '-') {
+			std::cerr << "smash error: > " << "\"" << cmdString << "\"" << endl;
+			return 1;
+		}
+		int job_id = -1;
+		try {
+			job_id = stoi(args[2]);
+		}
+		catch (invalid_argument& e) {
+			std::cerr << "smash error: > " << "\"" << cmdString << "\"" << endl;
+			return 1;
+		}
+		int sig_num = -1;
+		try {
+			sig_num = abs(stoi(args[1]));
+		}
+		catch (invalid_argument& e) {
+			std::cerr << "smash error: > " << "\"" << cmdString << "\"" << endl;
+			return 1;
+		}
+
+		if (smash->jobs->getJobById(job_id) == nullptr)
+		{
+			cerr << "smash error: > kill " << job_id << " - job does not exist" << endl;
+			return 1;
+		}
+		JobsList::JobItem* job_to_kill = smash->jobs->getJobById(job_id);
+
+		if (kill(job_to_kill->PID, sig_num) == -1)
+		{
+			std::cerr << "smash error: > kill " << job_id << " - cannot send signal" << endl;
+			return 1;
+		}
+		int stopStatus = -1;
+		if (waitpid(job_to_kill->PID, &stopStatus, WUNTRACED| WCONTINUED) == -1) {
+			perror("smash error: > ");
+			return 1;
+		}
+		if (WIFSTOPPED(stopStatus)) {
+			job_to_kill->stopped = true;
+		}
+		else if (WIFCONTINUED(stopStatus)) {
+			job_to_kill->stopped = false;
+		}
+		/*
+		if (sig_num == 18)
+			job_to_kill->stopped = false;
+		if (sig_num == 20)
+			job_to_kill->stopped = true;*/
+		//std::cout << "signal number " << i_sig_num << " was sent to pid " << the_job->PID << endl;
+	}
+	/*************************************************/
 	else if (!strcmp(cmd, "showpid")) 
 	{
 		if (num_arg > 0) { //check if there is more than 0 arg - "showpid" doesn't use any arg
-			std::cerr << "smash error: showpid: too many arguments" << endl;
+			std::cerr << "smash error: > " << "\"" << cmdString << "\"" << endl;
 			return 1;
 		}
 		std::cout << "smash pid is " << smash->smashPID << endl;
@@ -110,13 +181,13 @@ int ExeCmd(SmallShell* smash, void* jobs, char* lineSize, char* cmdString)
 	{
 		if (num_arg > 1)
 		{
-			std::cerr << "smash error: fg: too many arguments" << endl;
+			std::cerr << "smash error: > " << "\"" << cmdString << "\"" << endl;
 			return 1;
 		}
 		int jobIdToFG;
 		if (num_arg == 0) { // command: "fg "
 			if (smash->jobs->jobsList->empty()) {
-				std::cerr << "smash error: fg: jobs list is empty" << endl;
+				std::cerr << "smash error: > fg: jobs list is empty" << endl;
 				return 1;
 			}
 			jobIdToFG = smash->jobs->findCurrMaxJobID();
@@ -126,20 +197,20 @@ int ExeCmd(SmallShell* smash, void* jobs, char* lineSize, char* cmdString)
 				jobIdToFG = stoi(args[1]);
 			}
 			catch (invalid_argument& e) {
-				std::cerr << "smash error: bg: invalid arguments" << endl;
+				std::cerr << "smash error: > " << "\"" << cmdString << "\"" << endl;
 				return 1;
 			}
 			}
 
 		JobsList::JobItem* job = smash->jobs->getJobById(jobIdToFG);
 		if (!job) {
-			std::cerr << "smash error: fg: " << "job-id " << jobIdToFG << " does not exist" << endl;
+			std::cerr << "smash error: > fg: " << "job-id " << jobIdToFG << " does not exist" << endl;
 			return 1;
 		}
 		std::cout << job->cmd << endl;
 		if (job->stopped) {
 			if (kill(job->PID, SIGCONT) == -1) {
-				perror("smash error: kill failed");
+				perror("smash error: > ");
 				return 1;
 			}
 		}
@@ -148,7 +219,7 @@ int ExeCmd(SmallShell* smash, void* jobs, char* lineSize, char* cmdString)
 		strcpy(smash->currentCmdRunning,  job->cmd.c_str());
 		int status = -1;
 		if (waitpid(job->PID, &status, WUNTRACED) == -1) {
-			perror("smash error: waitpid failed");
+			perror("smash error: > ");
 			return 1;
 		}
 		if (!WIFSTOPPED(status))
@@ -158,18 +229,18 @@ int ExeCmd(SmallShell* smash, void* jobs, char* lineSize, char* cmdString)
 	else if (!strcmp(cmd, "bg")) 
 	{
 		if (num_arg > 1) { 
-			std::cout << "smash error: bg: invalid arguments" << endl;
+			std::cerr << "smash error: > " << "\"" << cmdString << "\"" << endl;
 			return 1;
 		}
 		int jobIdToCont;
 		if (smash->jobs->jobsList->empty()) {
-			std::cerr << "smash error: bg: jobs list is empty" << endl;
+			std::cerr << "smash error: > bg: jobs list is empty" << endl;
 			return 1;
 		}
 		if (num_arg == 0) { // command: "bg "
 			jobIdToCont = smash->jobs->findMaxStoppedJobID();
 			if (jobIdToCont == 0) {
-				std::cout << "smash error: bg: there is no stopped jobs to resume" << endl;
+				std::cout << "smash error: > bg: there is no stopped jobs to resume" << endl;
 				return 1;
 			}
 		}
@@ -178,22 +249,22 @@ int ExeCmd(SmallShell* smash, void* jobs, char* lineSize, char* cmdString)
 				jobIdToCont = stoi(args[1]);
 			}
 			catch (invalid_argument& e) {
-				std::cerr << "smash error: bg: invalid arguments" << endl;
+				std::cerr << "smash error: > " << "\"" << cmdString << "\"" << endl;
 				return 1;
 			}
 		}
 		JobsList::JobItem* job = smash->jobs->getJobById(jobIdToCont);
 		if (!job) {
-			std::cerr << "smash error: bg: job-id " << jobIdToCont << " does not exist" << endl;
+			std::cerr << "smash error: > bg: job-id " << jobIdToCont << " does not exist" << endl;
 			return 1;
 		}
 		if (!job->stopped) {
-			std::cerr << "smash error: bg: job-id " << jobIdToCont << " is already running in the background" << endl;
+			std::cerr << "smash error: > bg: job-id " << jobIdToCont << " is already running in the background" << endl;
 			return 1;
 		}	
 		if (kill(job->PID, SIGCONT) == -1)
 		{
-			perror("smash error: kill failed");
+			perror("smash error: > ");
 			return 1;
 		}
 		job->stopped = false;
@@ -217,6 +288,7 @@ int ExeCmd(SmallShell* smash, void* jobs, char* lineSize, char* cmdString)
 				exit(0);
 			}
 		}
+
    		
 	} 
 	else if (!strcmp(cmd, "diff"))
@@ -242,25 +314,24 @@ int ExeCmd(SmallShell* smash, void* jobs, char* lineSize, char* cmdString)
 			}
 			string str2((istreambuf_iterator<char>(t2)), istreambuf_iterator<char>());
 			if (str1 == str2)
-				cout << 1<< "\n";
+				cout << 0<< "\n";
 			else
-				cout << 0 << "\n";
+				cout << 1 << "\n";
 			t2.close();
 			t1.close();
 		}
 		else // num_arg != 2
 		{
-			cerr << "Error - Number of args is not equal to 2";
+			std::cerr << "smash error: > " << "\"" << cmdString << "\"" << endl;
 		}
 
 	}
 	/*************************************************/
 	else if(!(lineSize[strlen(lineSize) - 2] == '&')) // external command
 	{
- 		
-	 	return ExeExternal(smash, args, cmdString, false);
+		return ExeExternal(smash, args, const_cast<char*>(CmdWithoutWhiteSpaces.c_str()), false);
 	}
-	if (illegal_cmd == true)
+	if (illegal_cmd == true) //FIXME - necessary?
 	{
 		printf("smash error: > \"%s\"\n", cmdString);
 		return 1;
@@ -276,95 +347,89 @@ int ExeCmd(SmallShell* smash, void* jobs, char* lineSize, char* cmdString)
 int ExeExternal(SmallShell* smash, char* args[MAX_ARG], char* cmdString, bool isBackgroundCmd)
 {
 	int pID;
-	string t  = string("/bin/") + string(args[0]);
+	//string t = string("/bin/bash");// +string(args[0]);
+	//cout << cmdString << endl;
+	char* exec_args[] = { (char*)"/bin/bash",(char*)"-c",const_cast<char*>(cmdString), nullptr };
 	switch (pID = fork())
 	{
 	case -1: {
-		cerr << "smash error: fork failed" << endl;
+		perror("smash error: > ");
 		return 1;
 		break;
 	}
 	case 0: { //child process
 		setpgrp();
-		if (execv(t.c_str(), args) == -1) {
-		cerr << "smash error: execv failed" << endl;
-		kill(pID, SIGKILL);
-		return 1;
+		if (execv(exec_args[0], exec_args) == -1) {
+			perror("smash error: > ");
+			kill(pID, SIGKILL);
+			return 1;
 		}
 		break;
 	}
 	default: { //parent process
 		if (isBackgroundCmd) {
 			smash->jobs->addJob(cmdString, pID, false);
-			cout << "here" << endl;
+			//cout << "here" << endl;
 		}
 		else {
 			smash->currentPIDRunning = pID;
+			strcpy(smash->currentCmdRunning, cmdString);
 			if (waitpid(pID, nullptr, WUNTRACED) == -1) {
-				cerr << "smash error: waitpid failed" << endl;
+				perror("smash error: > ");
 				return 1;
 			}
+
 		}
 	}
 	}
 	
 	return 0;
 }
-//**************************************************************************************
-// function name: ExeComp
-// Description: executes complicated command
-// Parameters: command string
-// Returns: 0- if complicated -1- if not
-//**************************************************************************************
-int ExeComp(char* lineSize)
-{
-	char ExtCmd[MAX_LINE_SIZE+2];
-	char *args[MAX_ARG];
-    if ((strstr(lineSize, "|")) || (strstr(lineSize, "<")) || (strstr(lineSize, ">")) || (strstr(lineSize, "*")) || (strstr(lineSize, "?")) || (strstr(lineSize, ">>")) || (strstr(lineSize, "|&")))
-    {
-		// Add your code here (execute a complicated command)
-					
-		/* 
-		your code
-		*/
-	} 
-	return -1;
-}
+
 //**************************************************************************************
 // function name: BgCmd
 // Description: if command is in background, insert the command to jobs
 // Parameters: command string, pointer to jobs
 // Returns: 0- BG command -1- if not
 //**************************************************************************************
-int BgCmd(SmallShell* smash, char* lineSize, void* jobs)
+/* int BgCmd(SmallShell* smash, void* jobs, char* lineSize, char* cmdString)
 {
 
 	char* cmd;
-	char* delimiters = " \t\n";
-	char *args[MAX_ARG];
-	if (lineSize[strlen(lineSize)-2] == '&')
-	{
-		lineSize[strlen(lineSize)-2] = '\0';
-		char* delimiters = " \t\n";
+	char delimiters[5] = " \t\n";
+	char* args[MAX_ARG];
+	//if (lineSize[strlen(lineSize) - 2] == '&')
+	//{
+		//cmdString[strlen(lineSize) - 2] = '\0';
+		//lineSize[strlen(lineSize) - 2] = '\0';
+		
+		//cout << "Inside IF:" << lineSize << endl;
 		int i = 0;
 		cmd = strtok(lineSize, delimiters);
+		//cout << "Inside IF2:" << lineSize << endl;
 		if (cmd == NULL)
-			return 0;
+			return 1;
+
 		args[0] = cmd;
+		string CmdWithoutWhiteSpaces = cmd;
 		for (i = 1; i < MAX_ARG; i++)
 		{
 			args[i] = strtok(NULL, delimiters);
+			if (args[i] != NULL) {
+				num_arg++;
+				CmdWithoutWhiteSpaces = CmdWithoutWhiteSpaces + " " + args[i];
+			}
 		}
 		// Add your code here (execute a in the background)
-		return (ExeExternal(smash, args, lineSize, true));
-					
-		/* 
-		your code
-		*/
-		
+		//cout << "Inside BG:" << lineSize << endl;
+		if (args[num_arg+1] == '&')
+		return (ExeExternal(smash, args, CmdWithoutWhiteSpaces, true));
+
+
 	}
-	return -1;
-}
+	return 1;
+	
+}*/
 ///////////////////////////////////////////SmallShell Class///////////////////////////////////////////////////////////////////////////
 
 // Static members of SmallShell in order to handle signals
@@ -381,7 +446,7 @@ SmallShell::SmallShell()  {
 	currentCmdRunning = new char[MAX_LINE_SIZE];
 	smashPID = getpid();
 	if (smashPID == -1)
-		perror("smash error: getpid failed");
+		perror("smash error: > ");
 }
 
 SmallShell::~SmallShell() {
@@ -434,7 +499,7 @@ bool JobsList::JobsComp(JobItem* first, JobItem* second) {
 }
 
 void JobsList::addJob(char* cmd, pid_t jobPID, bool isStopped) {
-	string cur_cmd = cmd;
+	string cur_cmd = string(cmd);
 	if (jobPID == SmallShell::currentPIDRunning) {
 		JobItem* tmp = getJobByPID(jobPID);
 		if (tmp) {        // Means job is already in jobList
@@ -480,11 +545,22 @@ void JobsList::printJobsList() {
 	while (it != jobsList->end())
 	{
 		int timePassed = difftime(time(nullptr), (*it)->startTime);
+		
+		/*pid_t pid = waitpid((*it)->PID, &stopStatus, WUNTRACED | WNOHANG);
+		if (WIFSTOPPED(stopStatus)) {
+			cout << "a" << endl;
+			(*it)->stopped = true;
+		}
+		else if (WIFCONTINUED(stopStatus)) {
+			cout << "h" << endl;
+			(*it)->stopped = false;
+		}*/
 		pid_t pid = waitpid((*it)->PID, nullptr, WNOHANG);
 		if (pid > 0) { // meaning - job finished running
 			jobsList->remove(*(it++));
 			continue;
 		}
+	
 		if ((*it)->stopped) {
 			std::cout << "[" << (*it)->jobID << "] " << (*it)->cmd << " : " <<
 				(*it)->PID << " " << timePassed << " secs (stopped)" << endl;
@@ -519,7 +595,7 @@ void JobsList::removeJobById(int jobId) {
 	{
 		if ((*it)->jobID == jobId) {
 			jobsList->remove(*it);
-			delete* it;
+			delete *it;
 			if (jobId == maxID) maxID = findCurrMaxJobID();
 			break;
 		}
@@ -547,21 +623,24 @@ int JobsList::findMaxStoppedJobID() {
 void JobsList::KillAllJobs() {
 	jobsList->sort(JobsList::JobsComp);
 	for (auto it = jobsList->begin(); it != jobsList->end(); it++) {
-		if (kill((*it)->PID, SIGTERM) == -1) perror("smash error: kill failed");
+		if (kill((*it)->PID, SIGTERM) == -1) perror("smash error: > ");
 		time_t startKill = time(nullptr);
+		pid_t pid;
 		int timePassed = difftime(time(nullptr), startKill);
 		std::cout << (*it)->cmd << " - Sending SIGTERM... ";
 		while (timePassed < 5) {
 			timePassed = difftime(time(nullptr), startKill);
-			pid_t pid = waitpid((*it)->PID, nullptr, WNOHANG);
+			pid = waitpid((*it)->PID, nullptr, WNOHANG);
 			if (pid > 0) { // meaning - job finished running
-				jobsList->remove(*it);
-				std::cout << "Done." << endl;
 				break;
 			}
 		 }
+		if (pid > 0) { // meaning - job finished running
+			std::cout << "Done." << endl;
+			continue;
+		}
 		std::cout << "(5 sec passed) Sending SIGKILL... ";
-		if (kill((*it)->PID, SIGKILL) == -1) perror("smash error: kill failed");
+		if (kill((*it)->PID, SIGKILL) == -1) perror("smash error: > ");
 		std::cout << "Done." << endl;
 	}
 }
