@@ -278,16 +278,22 @@ int ExeCmd(SmallShell* smash, void* jobs, char* lineSize, char* cmdString)
 		{
 			exit(0);
 		}
-		else //command: "quit kill"
+		else if((num_arg==1)&& (!strcmp(args[1], "kill"))) //command: "quit kill"
 		{
-			string second_arg = args[1];
-			if (second_arg.compare("kill") == 0) {
+			//string second_arg = args[1];
+			//if (second_arg.compare("kill") == 0) {
 				smash->jobs->removeFinishedJobs();
 				//std::cout << "smash: sending SIGKILL signal to " << smash->jobs->jobsList->size() << " jobs:" << endl;
 				smash->jobs->KillAllJobs();
 				exit(0);
-			}
+			//}
 		}
+		else
+		{
+			std::cerr << "smash error: > " << "\"" << cmdString << "\"" << endl;
+			return 1;
+		}
+
 
    		
 	} 
@@ -298,7 +304,7 @@ int ExeCmd(SmallShell* smash, void* jobs, char* lineSize, char* cmdString)
 			char* file1 = args[1];
 			char* file2 = args[2];
 			ifstream t1;
-			t1.open(file1);
+		    t1.open(file1);
 			if (!t1)
 			{ 
 				perror("smash error: > ");
@@ -528,6 +534,10 @@ void JobsList::removeFinishedJobs() {
 	for (auto it = jobsList->begin(); it != jobsList->end(); it++)
 	{
 		pid_t pid = waitpid((*it)->PID, nullptr, WNOHANG);
+		if (pid == -1) {
+			perror("smash error: > ");
+			return ;
+		}
 		if (pid > 0) { // meaning - job finished running
 			jobsList->remove(*it);
 			it = jobsList->begin(); // necessery?
@@ -556,6 +566,10 @@ void JobsList::printJobsList() {
 			(*it)->stopped = false;
 		}*/
 		pid_t pid = waitpid((*it)->PID, nullptr, WNOHANG);
+		if (pid == -1) {
+			perror("smash error: > ");
+			return ;
+		}
 		if (pid > 0) { // meaning - job finished running
 			jobsList->remove(*(it++));
 			continue;
@@ -627,10 +641,14 @@ void JobsList::KillAllJobs() {
 		time_t startKill = time(nullptr);
 		pid_t pid;
 		int timePassed = difftime(time(nullptr), startKill);
-		std::cout << (*it)->cmd << " - Sending SIGTERM... ";
+		std::cout << "[" << (*it)->jobID << "] " << (*it)->cmd << " - Sending SIGTERM... "<<flush;
 		while (timePassed < 5) {
 			timePassed = difftime(time(nullptr), startKill);
 			pid = waitpid((*it)->PID, nullptr, WNOHANG);
+			if (pid == -1) {
+				perror("smash error: > ");
+				return ;
+			}
 			if (pid > 0) { // meaning - job finished running
 				break;
 			}
