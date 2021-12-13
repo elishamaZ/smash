@@ -565,6 +565,11 @@ void JobsList::printJobsList() {
 			cout << "h" << endl;
 			(*it)->stopped = false;
 		}*/
+		if (!(0 == kill((*it)->PID, 0)))
+		{
+			it++;
+			continue;
+		}
 		pid_t pid = waitpid((*it)->PID, nullptr, WNOHANG);
 		if (pid == -1) {
 			perror("smash error: > ");
